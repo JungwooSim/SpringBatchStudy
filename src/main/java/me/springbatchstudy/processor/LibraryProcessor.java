@@ -4,13 +4,16 @@ import me.springbatchstudy.model.Library;
 import me.springbatchstudy.model.LibraryDTO;
 import org.springframework.batch.item.ItemProcessor;
 
-public class LibraryProcessor implements ItemProcessor<Library, Library> {
+public class LibraryProcessor implements ItemProcessor<LibraryDTO, Library> {
 
     @Override
-    public Library process(Library library) {
-        System.out.println("-----------");
-//        System.out.println(library.col1);
-//        final LibraryDTO libraryDTO = new LibraryDTO();
+    public Library process(LibraryDTO libraryDto) {
+        Library library = Library.builder()
+                .col1(libraryDto.col1)
+                .col2(libraryDto.col2)
+                .col3(libraryDto.col3)
+                .build();
+
         return library;
     }
 }

@@ -1,16 +1,18 @@
 package me.springbatchstudy.Listener;
 
 
+import me.springbatchstudy.model.Library;
+import me.springbatchstudy.model.LibraryDTO;
 import org.springframework.batch.core.ItemReadListener;
 
-public class ReadListener implements ItemReadListener<String> {
+public class ReadListener implements ItemReadListener<LibraryDTO> {
     @Override
     public void beforeRead() {
         System.out.println("before");
     }
 
     @Override
-    public void afterRead(String item) {
+    public void afterRead(LibraryDTO item) {
         System.out.println("after");
     }
 

@@ -1,41 +1,43 @@
 package me.springbatchstudy.config;
 
+import me.springbatchstudy.LibraryFileRowMapper;
 import me.springbatchstudy.Listener.ReadListener;
 import me.springbatchstudy.model.Library;
+import me.springbatchstudy.model.LibraryDTO;
 import me.springbatchstudy.processor.LibraryProcessor;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
-import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
+import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.launch.support.RunIdIncrementer;
 import org.springframework.batch.item.database.BeanPropertyItemSqlParameterSourceProvider;
 import org.springframework.batch.item.database.JdbcBatchItemWriter;
 import org.springframework.batch.item.file.FlatFileItemReader;
-import org.springframework.batch.item.file.mapping.BeanWrapperFieldSetMapper;
 import org.springframework.batch.item.file.mapping.DefaultLineMapper;
 import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
+
 import javax.sql.DataSource;
+import java.util.function.Function;
 
 @Configuration
 public class SpringBatchConfig {
     @Autowired
     public JobBuilderFactory jobBuilderFactory;
-
     @Autowired
     public StepBuilderFactory stepBuilderFactory;
-
     @Autowired
     public DataSource dataSource;
+    @Autowired
+    public LibraryProcessor libraryProcessor;
 
     @Bean
-    public Job importLibrary() {
+    public Job importLibrary() throws Exception {
         return jobBuilderFactory.get("libraryTest")
-                .incrementer(new RunIdIncrementer())
                 .flow(step1())
                 .end()
                 .build();
@@ -44,27 +46,31 @@ public class SpringBatchConfig {
     @Bean
     public Step step1() {
         return stepBuilderFactory.get("step1")
-                .<Library, Library> chunk(10)
+                .<LibraryDTO, Library> chunk(10)
                 .reader(reader())
-//                .processor(processor())
+                .processor(libraryProcessor)
                 .writer(writer())
-                .listener(new ReadListener())
+                .listener(readListener())
                 .build();
     }
 
     @Bean
-    public FlatFileItemReader<Library> reader() {
-        FlatFileItemReader<Library> reader = new FlatFileItemReader<>();
-        reader.setResource(new ClassPathResource("employee.csv"));
-        reader.setStrict(false);
+    public ReadListener readListener() {
+        return new ReadListener();
+    }
 
-        reader.setLineMapper(new DefaultLineMapper<Library>() {{
+    @Bean
+    @StepScope
+    public FlatFileItemReader<LibraryDTO> reader() {
+        FlatFileItemReader<LibraryDTO> reader = new FlatFileItemReader<>();
+        reader.setResource(new ClassPathResource("libraryTest.csv"));
+        reader.setLinesToSkip(1);
+
+        reader.setLineMapper(new DefaultLineMapper<LibraryDTO>() {{
             setLineTokenizer(new DelimitedLineTokenizer() {{
                 setNames(new String[] {"col1","col2","col3"});
             }});
-            setFieldSetMapper(new BeanWrapperFieldSetMapper() {{
-                setTargetType(Library.class);
-            }});
+            setFieldSetMapper(new LibraryFileRowMapper());
         }});
         return reader;
     }
@@ -82,13 +88,8 @@ public class SpringBatchConfig {
         writer.setSql("INSERT INTO library2 (col_1, col_2, col_3) " +
                 "VALUES (:col1, :col2, :col3)");
         writer.setDataSource(dataSource);
+        writer.setItemSqlParameterSourceProvider(new BeanPropertyItemSqlParameterSourceProvider<>());
         return writer;
-//        JdbcBatchItemWriter<LibraryProcessor> writer = new JdbcBatchItemWriter<LibraryProcessor>();
-//        writer.setItemSqlParameterSourceProvider(new BeanPropertyItemSqlParameterSourceProvider<>());
-//        writer.setSql("INSERT INTO employee (first_name,last_name,company_name,address,city,county,state,zip) " +
-//                "VALUES (:firstName, :lastName,:companyName,:address,:city,:county,:state,:zip)");
-//        writer.setDataSource(dataSource);
-//        return writer;
     }
 
 }
