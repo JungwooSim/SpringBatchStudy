@@ -1,43 +1,42 @@
 package me.springbatchstudy.config;
 
-import me.springbatchstudy.LibraryFileRowMapper;
+import lombok.AllArgsConstructor;
+import me.springbatchstudy.Listener.JobListener;
 import me.springbatchstudy.Listener.ReadListener;
-import me.springbatchstudy.model.Library;
-import me.springbatchstudy.model.LibraryDTO;
+import me.springbatchstudy.Listener.WriterListener;
+import me.springbatchstudy.model.LibraryTmp;
+import me.springbatchstudy.model.LibraryTmpDto;
 import me.springbatchstudy.processor.LibraryProcessor;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
-import org.springframework.batch.core.launch.support.RunIdIncrementer;
-import org.springframework.batch.item.database.BeanPropertyItemSqlParameterSourceProvider;
+import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.database.JdbcBatchItemWriter;
+import org.springframework.batch.item.database.JpaItemWriter;
 import org.springframework.batch.item.file.FlatFileItemReader;
-import org.springframework.batch.item.file.mapping.DefaultLineMapper;
-import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
+import org.springframework.batch.item.file.mapping.BeanWrapperFieldSetMapper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
 
 import javax.sql.DataSource;
-import java.util.function.Function;
+import java.util.List;
 
+@AllArgsConstructor
 @Configuration
 public class SpringBatchConfig {
-    @Autowired
-    public JobBuilderFactory jobBuilderFactory;
-    @Autowired
-    public StepBuilderFactory stepBuilderFactory;
-    @Autowired
-    public DataSource dataSource;
-    @Autowired
-    public LibraryProcessor libraryProcessor;
+    public final JobBuilderFactory jobBuilderFactory;
+    public final StepBuilderFactory stepBuilderFactory;
+    public final DataSource dataSource;
+    public final LibraryProcessor libraryProcessor;
 
     @Bean
     public Job importLibrary() throws Exception {
         return jobBuilderFactory.get("libraryTest")
+                .listener(jobListener())
                 .flow(step1())
                 .end()
                 .build();
@@ -46,12 +45,24 @@ public class SpringBatchConfig {
     @Bean
     public Step step1() {
         return stepBuilderFactory.get("step1")
-                .<LibraryDTO, Library> chunk(10)
+                .<LibraryTmpDto, LibraryTmpDto> chunk(10)
                 .reader(reader())
-                .processor(libraryProcessor)
+//                .processor(libraryProcessor)
                 .writer(writer())
                 .listener(readListener())
+                .listener(writeListener())
                 .build();
+    }
+
+    private ItemWriter<? super LibraryTmpDto> writer() {
+        JpaItemWriter<LibraryTmpDto> libraryTmpDtoJpaItemWriter = new JpaItemWriter<>();
+
+        return libraryTmpDtoJpaItemWriter;
+    }
+
+    @Bean
+    public JobListener jobListener() {
+        return new JobListener();
     }
 
     @Bean
@@ -60,36 +71,47 @@ public class SpringBatchConfig {
     }
 
     @Bean
-    @StepScope
-    public FlatFileItemReader<LibraryDTO> reader() {
-        FlatFileItemReader<LibraryDTO> reader = new FlatFileItemReader<>();
-        reader.setResource(new ClassPathResource("libraryTest.csv"));
-        reader.setLinesToSkip(1);
-
-        reader.setLineMapper(new DefaultLineMapper<LibraryDTO>() {{
-            setLineTokenizer(new DelimitedLineTokenizer() {{
-                setNames(new String[] {"col1","col2","col3"});
-            }});
-            setFieldSetMapper(new LibraryFileRowMapper());
-        }});
-        return reader;
+    public WriterListener writeListener() {
+        return new WriterListener();
     }
 
     @Bean
-    public LibraryProcessor processor() {
-        System.out.println("=============");
-        return new LibraryProcessor();
+    public FlatFileItemReader<LibraryTmpDto> reader() {
+        return new FlatFileItemReaderBuilder<LibraryTmpDto>()
+                .resource(new ClassPathResource("library.csv"))
+                .linesToSkip(1)
+                .name("LibraryCsvReader")
+                .delimited()
+                .names("libraryNM","libraryType","bigLocal","smallLocal")
+                .fieldSetMapper(new BeanWrapperFieldSetMapper<LibraryTmpDto>(){{
+                    setTargetType(LibraryTmpDto.class);
+                }}).build();
     }
 
-    @Bean
-    public JdbcBatchItemWriter<Library> writer() {
-        JdbcBatchItemWriter<Library> writer = new JdbcBatchItemWriter<>();
-        writer.setItemSqlParameterSourceProvider(new BeanPropertyItemSqlParameterSourceProvider<>());
-        writer.setSql("INSERT INTO library2 (col_1, col_2, col_3) " +
-                "VALUES (:col1, :col2, :col3)");
-        writer.setDataSource(dataSource);
-        writer.setItemSqlParameterSourceProvider(new BeanPropertyItemSqlParameterSourceProvider<>());
-        return writer;
-    }
+//    @Bean
+//    @StepScope
+//    public FlatFileItemReader<LibraryDTO> reader() {
+//        FlatFileItemReader<LibraryDTO> reader = new FlatFileItemReader<>();
+//        reader.setResource(new ClassPathResource("libraryTest.csv"));
+//        reader.setLinesToSkip(1);
+//
+//        reader.setLineMapper(new DefaultLineMapper<LibraryDTO>() {{
+//            setLineTokenizer(new DelimitedLineTokenizer() {{
+//                setNames(new String[] {"col1","col2","col3"});
+//            }});
+//            setFieldSetMapper(new LibraryFileRowMapper());
+//        }});
+//        return reader;
+//    }
 
+//    @Bean
+//    public JdbcBatchItemWriter<LibraryTmpDto> writer() {
+//        JdbcBatchItemWriter<LibraryTmpDto> writer = new JdbcBatchItemWriter<>();
+////        writer.setItemSqlParameterSourceProvider(new BeanPropertyItemSqlParameterSourceProvider<>());
+////        writer.setSql("INSERT INTO library2 (col_1, col_2, col_3) " +
+////                "VALUES (:col1, :col2, :col3)");
+////        writer.setDataSource(dataSource);
+////        writer.setItemSqlParameterSourceProvider(new BeanPropertyItemSqlParameterSourceProvider<>());
+//        return writer;
+//    }
 }

@@ -1,19 +1,21 @@
 package me.springbatchstudy.processor;
 
-import me.springbatchstudy.model.Library;
-import me.springbatchstudy.model.LibraryDTO;
+import me.springbatchstudy.model.LibraryTmp;
+import me.springbatchstudy.model.LibraryTmpDto;
 import org.springframework.batch.item.ItemProcessor;
+import org.springframework.context.annotation.Configuration;
 
-public class LibraryProcessor implements ItemProcessor<LibraryDTO, Library> {
+@Configuration
+public class LibraryProcessor implements ItemProcessor<LibraryTmpDto, LibraryTmp> {
 
     @Override
-    public Library process(LibraryDTO libraryDto) {
-        Library library = Library.builder()
-                .col1(libraryDto.col1)
-                .col2(libraryDto.col2)
-                .col3(libraryDto.col3)
+    public LibraryTmp process(LibraryTmpDto libraryTmpDto) {
+        LibraryTmp libraryTmp = LibraryTmp.builder()
+                .libraryNM(libraryTmpDto.getLibraryNM())
+                .libraryType(libraryTmpDto.getLibraryType())
+                .bigLocal(libraryTmpDto.getBigLocal())
+                .smallLocal(libraryTmpDto.smallLocal)
                 .build();
-
-        return library;
+        return libraryTmp;
     }
 }
