@@ -12,4 +12,13 @@ public class LibraryTmpDto {
     public String libraryType;
     public String bigLocal;
     public String smallLocal;
+
+    public LibraryTmp toEntity() {
+        return LibraryTmp.builder()
+                .libraryNM(libraryNM)
+                .libraryType(libraryType)
+                .bigLocal(bigLocal)
+                .smallLocal(smallLocal)
+                .build();
+    }
 }

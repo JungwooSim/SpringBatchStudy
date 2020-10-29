@@ -7,7 +7,10 @@ import lombok.NoArgsConstructor;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
+import javax.persistence.GeneratedValue;
 import javax.persistence.Id;
+
+import static javax.persistence.GenerationType.IDENTITY;
 
 @Builder
 @Getter
@@ -15,10 +18,12 @@ import javax.persistence.Id;
 @NoArgsConstructor
 @Entity(name = "tmp_library")
 public class LibraryTmp {
+
     @Id
+    @GeneratedValue(strategy = IDENTITY)
     public Long id;
 
-    @Column(name = "libary_nm")
+    @Column(name = "library_nm")
     public String libraryNM;
 
     @Column(name = "library_type")

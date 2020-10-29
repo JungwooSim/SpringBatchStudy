@@ -11,19 +11,20 @@ import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
-import org.springframework.batch.core.configuration.annotation.StepScope;
+import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemWriter;
-import org.springframework.batch.item.database.JdbcBatchItemWriter;
 import org.springframework.batch.item.database.JpaItemWriter;
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
 import org.springframework.batch.item.file.mapping.BeanWrapperFieldSetMapper;
+import org.springframework.batch.item.file.mapping.DefaultLineMapper;
+import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
 
+import javax.persistence.EntityManagerFactory;
 import javax.sql.DataSource;
-import java.util.List;
 
 @AllArgsConstructor
 @Configuration
@@ -32,6 +33,8 @@ public class SpringBatchConfig {
     public final StepBuilderFactory stepBuilderFactory;
     public final DataSource dataSource;
     public final LibraryProcessor libraryProcessor;
+
+    private final EntityManagerFactory entityManagerFactory;
 
     @Bean
     public Job importLibrary() throws Exception {
@@ -45,20 +48,31 @@ public class SpringBatchConfig {
     @Bean
     public Step step1() {
         return stepBuilderFactory.get("step1")
-                .<LibraryTmpDto, LibraryTmpDto> chunk(10)
+                .<LibraryTmpDto, LibraryTmp> chunk(10)
                 .reader(reader())
-//                .processor(libraryProcessor)
-                .writer(writer())
+                .processor(fileToTmpProcessor())
+                .writer(tmpWriter())
                 .listener(readListener())
-                .listener(writeListener())
+//                .listener(writeListener())
                 .build();
     }
 
-    private ItemWriter<? super LibraryTmpDto> writer() {
-        JpaItemWriter<LibraryTmpDto> libraryTmpDtoJpaItemWriter = new JpaItemWriter<>();
-
-        return libraryTmpDtoJpaItemWriter;
+    private ItemProcessor<? super LibraryTmpDto, ? extends LibraryTmp> fileToTmpProcessor() {
+        return LibraryTmpDto::toEntity;
     }
+
+    private ItemWriter<? super LibraryTmp> tmpWriter() {
+        return new JpaItemWriter<LibraryTmp>() {{
+            setEntityManagerFactory(entityManagerFactory);
+        }};
+    }
+
+//    @Bean
+//    public ItemWriter<? super LibraryTmp> writer() {
+//        JpaItemWriter<LibraryTmp> libraryTmpDtoJpaItemWriter = new JpaItemWriter<>();
+//
+//        return libraryTmpDtoJpaItemWriter;
+//    }
 
     @Bean
     public JobListener jobListener() {
@@ -81,11 +95,19 @@ public class SpringBatchConfig {
                 .resource(new ClassPathResource("library.csv"))
                 .linesToSkip(1)
                 .name("LibraryCsvReader")
-                .delimited()
-                .names("libraryNM","libraryType","bigLocal","smallLocal")
-                .fieldSetMapper(new BeanWrapperFieldSetMapper<LibraryTmpDto>(){{
-                    setTargetType(LibraryTmpDto.class);
+                .lineMapper(new DefaultLineMapper<LibraryTmpDto>() {{
+                    setLineTokenizer(new DelimitedLineTokenizer(DelimitedLineTokenizer.DELIMITER_COMMA){{
+                        setNames("libraryNM","libraryType","bigLocal","smallLocal");
+                        setIncludedFields(0,1,2,3);
+                    }});
+                    setFieldSetMapper(new BeanWrapperFieldSetMapper<LibraryTmpDto>(){{
+                        setTargetType(LibraryTmpDto.class);
+                    }});
                 }}).build();
+//                .delimited()
+//                .fieldSetMapper(new BeanWrapperFieldSetMapper<LibraryTmpDto>(){{
+//                    setTargetType(LibraryTmpDto.class);
+//                }}).build();
     }
 
 //    @Bean
