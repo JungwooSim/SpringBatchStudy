@@ -11,10 +11,12 @@ import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
+import org.springframework.batch.core.launch.support.RunIdIncrementer;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.database.JpaItemWriter;
 import org.springframework.batch.item.file.FlatFileItemReader;
+import org.springframework.batch.item.file.LineMapper;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
 import org.springframework.batch.item.file.mapping.BeanWrapperFieldSetMapper;
 import org.springframework.batch.item.file.mapping.DefaultLineMapper;
@@ -42,6 +44,7 @@ public class SpringBatchConfig {
                 .listener(jobListener())
                 .flow(step1())
                 .end()
+                .incrementer(new RunIdIncrementer())
                 .build();
     }
 
@@ -82,22 +85,22 @@ public class SpringBatchConfig {
     public WriterListener writeListener() {
         return new WriterListener();
     }
-
-    // TODO :: 빌더 패턴을 일반 java 패턴으로 수정 필요 (진행중)
+    
     @Bean
     public FlatFileItemReader<LibraryTmpDto> reader() {
-        DefaultLineMapper<LibraryTmpDto> defaultLineMapper = new DefaultLineMapper<>();
-
-        DelimitedLineTokenizer delimitedLineTokenizer = new DelimitedLineTokenizer();
-        delimitedLineTokenizer.setIncludedFields(0,1,2,3);
-
         BeanWrapperFieldSetMapper<LibraryTmpDto> beanWrapperFieldSetMapper = new BeanWrapperFieldSetMapper<>();
         beanWrapperFieldSetMapper.setTargetType(LibraryTmpDto.class);
+
+        DelimitedLineTokenizer delimitedLineTokenizer = new DelimitedLineTokenizer(DelimitedLineTokenizer.DELIMITER_COMMA);
+        delimitedLineTokenizer.setIncludedFields(0,1,2,3);
+        delimitedLineTokenizer.setNames("libraryNM","libraryType","bigLocal","smallLocal");
+
+        DefaultLineMapper<LibraryTmpDto> defaultLineMapper = new DefaultLineMapper<>();
 
         defaultLineMapper.setLineTokenizer(delimitedLineTokenizer);
         defaultLineMapper.setFieldSetMapper(beanWrapperFieldSetMapper);
 
-        FlatFileItemReader<LibraryTmpDto> libraryTmpDtoFlatFileItemReaderBuilder = new FlatFileItemReaderBuilder<>()
+        FlatFileItemReader<LibraryTmpDto> libraryTmpDtoFlatFileItemReaderBuilder = new FlatFileItemReaderBuilder<LibraryTmpDto>()
                 .name("LibraryCsvReader")
                 .resource(new ClassPathResource("library.csv"))
                 .linesToSkip(1)
@@ -106,24 +109,6 @@ public class SpringBatchConfig {
                 .build();
 
         return libraryTmpDtoFlatFileItemReaderBuilder;
-
-//        return new FlatFileItemReaderBuilder<LibraryTmpDto>()
-//                .resource(new ClassPathResource("library.csv"))
-//                .linesToSkip(1)
-//                .name("LibraryCsvReader")
-//                .lineMapper(new DefaultLineMapper<LibraryTmpDto>() {{
-//                    setLineTokenizer(new DelimitedLineTokenizer(DelimitedLineTokenizer.DELIMITER_COMMA){{
-//                        setNames("libraryNM","libraryType","bigLocal","smallLocal");
-//                        setIncludedFields(0,1,2,3);
-//                    }});
-//                    setFieldSetMapper(new BeanWrapperFieldSetMapper<LibraryTmpDto>(){{
-//                        setTargetType(LibraryTmpDto.class);
-//                    }});
-//                }}).build();
-//                .delimited()
-//                .fieldSetMapper(new BeanWrapperFieldSetMapper<LibraryTmpDto>(){{
-//                    setTargetType(LibraryTmpDto.class);
-//                }}).build();
     }
 
 //    @Bean
