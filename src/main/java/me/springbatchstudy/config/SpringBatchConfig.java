@@ -9,6 +9,7 @@ import me.springbatchstudy.model.LibraryTmpDto;
 import me.springbatchstudy.processor.LibraryProcessor;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
+import org.springframework.batch.core.configuration.JobFactory;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.launch.support.RunIdIncrementer;
@@ -109,6 +110,25 @@ public class SpringBatchConfig {
                 .build();
 
         return libraryTmpDtoFlatFileItemReaderBuilder;
+    }
+
+    @Bean
+    public Job readLibraryTmpAndWriter() {
+        return jobBuilderFactory.get("readLibraryTmpAndWriter")
+                .flow(readLibraryTmpAndWriterStep1())
+                .end()
+                .incrementer()
+                .build();
+    }
+
+    @Bean
+    public Step readLibraryTmpAndWriterStep1() {
+        return stepBuilderFactory.get("readLibraryTmpAndWriterStep1")
+                .chunk(10)
+                .reader()
+                .processor()
+                .writer()
+                .build();
     }
 
 //    @Bean
