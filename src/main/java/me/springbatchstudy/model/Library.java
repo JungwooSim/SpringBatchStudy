@@ -7,6 +7,8 @@ import lombok.NoArgsConstructor;
 
 import javax.persistence.*;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 @Getter
 @Builder
@@ -17,12 +19,34 @@ public class Library {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     public Long id;
 
-    @Column(name="col_1")
-    public String col1;
-    @Column(name="col_2")
-    public String col2;
-    @Column(name="col_3")
-    public String col3;
+    @Column(name = "library_nm")
+    public String libraryNM;
+
+    @Column(name = "library_type")
+    public String libraryType;
+
+
+    public List<BigLocal> bigLocal = new ArrayList<>();
+
+
+
+//    @Column(name = "big_local")
+//    public String bigLocal;
+//
+//    @Column(name = "small_local")
+//    public String smallLocal;
+
+//    CREATE TABLE `library` (
+//            `id` int unsigned NOT NULL AUTO_INCREMENT,
+//            `library_nm` int DEFAULT NULL,
+//            `big_local_id` int DEFAULT NULL,
+//            `libaray_type_id` int DEFAULT NULL,
+//            `small_local_id` int DEFAULT NULL,
+//    PRIMARY KEY (`id`),
+//    UNIQUE KEY `id_UNIQUE` (`id`)
+//            ) ENGINE=InnoDB DEFAULT CHARSET=utf8
+//
+
 //    @Column(name="col_4")
 //    public String col4;
 //    @Column(name="col_5")

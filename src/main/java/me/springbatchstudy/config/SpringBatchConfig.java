@@ -117,7 +117,7 @@ public class SpringBatchConfig {
         return jobBuilderFactory.get("readLibraryTmpAndWriter")
                 .flow(readLibraryTmpAndWriterStep1())
                 .end()
-                .incrementer()
+                .incrementer(new RunIdIncrementer())
                 .build();
     }
 
