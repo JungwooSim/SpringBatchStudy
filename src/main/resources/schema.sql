@@ -28,3 +28,9 @@ CREATE TABLE `library` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `id_UNIQUE` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+CREATE TABLE `library_type` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `libaray_type` varchar(45) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8
