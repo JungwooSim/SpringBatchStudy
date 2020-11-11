@@ -1,13 +1,12 @@
 package me.springbatchstudy.config;
 
-import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import me.springbatchstudy.Listener.JobListener;
 import me.springbatchstudy.Listener.ReadListener;
 import me.springbatchstudy.Listener.WriterListener;
 import me.springbatchstudy.Repository.BigLocalRepository;
 import me.springbatchstudy.model.BigLocal;
-import me.springbatchstudy.model.Library;
 import me.springbatchstudy.model.LibraryTmp;
 import me.springbatchstudy.model.LibraryTmpDto;
 import me.springbatchstudy.processor.LibraryProcessor;
@@ -32,7 +31,9 @@ import org.springframework.core.io.ClassPathResource;
 
 import javax.persistence.EntityManagerFactory;
 import javax.sql.DataSource;
+import java.util.Set;
 
+@Slf4j
 @RequiredArgsConstructor
 @Configuration
 public class SpringBatchConfig {
@@ -118,6 +119,7 @@ public class SpringBatchConfig {
         return libraryTmpDtoFlatFileItemReaderBuilder;
     }
 
+    // TODO : ItemReader 사용 (중복제거는 포함안되어있음)
     @Bean
     public Job readLibraryTmpAndWriter() {
         return jobBuilderFactory.get("readLibraryTmpAndWriter")
@@ -130,7 +132,7 @@ public class SpringBatchConfig {
     @Bean
     public Step readLibraryTmpAndWriterStep1() {
         return stepBuilderFactory.get("readLibraryTmpAndWriterStep1")
-                .<LibraryTmp, BigLocal>chunk(10)
+                .<LibraryTmp, String>chunk(10)
                 .reader(jpaPagingItemReader())
                 .processor(LibraryTmpToLibrary())
                 .writer(jpaPagingItemWriter())
@@ -147,18 +149,23 @@ public class SpringBatchConfig {
                 .build();
     }
 
-    // TODO : 중복 제거 후 디비에 넣는 작업 필요
     @Bean
-    public ItemProcessor<LibraryTmp, BigLocal> LibraryTmpToLibrary() {
-        return libraryTmp -> BigLocal.builder().bigLocal(libraryTmp.getBigLocal()).build();
+    public ItemProcessor<LibraryTmp, String> LibraryTmpToLibrary() {
+        return  LibraryTmp -> {
+            return LibraryTmp.getBigLocal();
+        };
     }
 
     @Bean
-    public ItemWriter<BigLocal> jpaPagingItemWriter() {
-        return bigLocals -> {
-            for (BigLocal bigLocal : bigLocals) {
-                bigLocalRepository.save(bigLocal);
+    public ItemWriter<String> jpaPagingItemWriter() {
+        return Items -> {
+            for (String item : Items) {
+                log.info(item);
             }
+//            for (BigLocal bigLocal : bigLocals) {
+//                log.info("");
+//                bigLocalRepository.save(bigLocal);
+//            }
         };
     }
 }
