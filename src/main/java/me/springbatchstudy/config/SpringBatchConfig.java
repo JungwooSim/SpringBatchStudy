@@ -3,6 +3,7 @@ package me.springbatchstudy.config;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.springbatchstudy.Listener.JobListener;
+import me.springbatchstudy.Listener.ProcessListener;
 import me.springbatchstudy.Listener.ReadListener;
 import me.springbatchstudy.Listener.WriterListener;
 import me.springbatchstudy.Repository.BigLocalRepository;
@@ -31,6 +32,7 @@ import org.springframework.core.io.ClassPathResource;
 
 import javax.persistence.EntityManagerFactory;
 import javax.sql.DataSource;
+import java.util.HashSet;
 import java.util.Set;
 
 @Slf4j
@@ -45,6 +47,8 @@ public class SpringBatchConfig {
     private final EntityManagerFactory entityManagerFactory;
 
     private final BigLocalRepository bigLocalRepository;
+
+    Set<String> testcc = new HashSet<>();
 
     @Bean
     public Job importLibrary() {
@@ -119,7 +123,6 @@ public class SpringBatchConfig {
         return libraryTmpDtoFlatFileItemReaderBuilder;
     }
 
-    // TODO : ItemReader 사용 (중복제거는 포함안되어있음)
     @Bean
     public Job readLibraryTmpAndWriter() {
         return jobBuilderFactory.get("readLibraryTmpAndWriter")
@@ -132,10 +135,11 @@ public class SpringBatchConfig {
     @Bean
     public Step readLibraryTmpAndWriterStep1() {
         return stepBuilderFactory.get("readLibraryTmpAndWriterStep1")
-                .<LibraryTmp, String>chunk(10)
+                .<LibraryTmp, Set<String>>chunk(4000)
                 .reader(jpaPagingItemReader())
                 .processor(LibraryTmpToLibrary())
                 .writer(jpaPagingItemWriter())
+                .listener(new ProcessListener())
                 .build();
     }
 
@@ -144,24 +148,26 @@ public class SpringBatchConfig {
         return new JpaPagingItemReaderBuilder<LibraryTmp>()
                 .name("LibraryReadFromLibraryTmpTable")
                 .entityManagerFactory(entityManagerFactory)
-                .pageSize(10)
+                .pageSize(4000)
                 .queryString("SELECT p FROM LibraryTmp p")
                 .build();
     }
 
     @Bean
-    public ItemProcessor<LibraryTmp, String> LibraryTmpToLibrary() {
+    public ItemProcessor<LibraryTmp, Set<String>> LibraryTmpToLibrary() {
         return  LibraryTmp -> {
-            return LibraryTmp.getBigLocal();
+            testcc.add(LibraryTmp.getBigLocal());
+            return testcc;
         };
     }
 
     @Bean
-    public ItemWriter<String> jpaPagingItemWriter() {
+    public ItemWriter<Set<String>> jpaPagingItemWriter() {
         return Items -> {
-            for (String item : Items) {
-                log.info(item);
-            }
+            log.info("Items size : "+Items.size());
+//            for (Set<String> item : Items) {
+//                log.info(String.valueOf(item));
+//            }
 //            for (BigLocal bigLocal : bigLocals) {
 //                log.info("");
 //                bigLocalRepository.save(bigLocal);
