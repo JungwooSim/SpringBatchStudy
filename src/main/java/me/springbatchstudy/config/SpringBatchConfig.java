@@ -8,6 +8,7 @@ import me.springbatchstudy.Listener.ReadListener;
 import me.springbatchstudy.Listener.WriterListener;
 import me.springbatchstudy.Repository.BigLocalRepository;
 import me.springbatchstudy.model.BigLocal;
+import me.springbatchstudy.model.DuplicationTest;
 import me.springbatchstudy.model.LibraryTmp;
 import me.springbatchstudy.model.LibraryTmpDto;
 import me.springbatchstudy.processor.LibraryProcessor;
@@ -29,10 +30,11 @@ import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.SetOperations;
 
 import javax.persistence.EntityManagerFactory;
 import javax.sql.DataSource;
-import java.util.HashSet;
 import java.util.Set;
 
 @Slf4j
@@ -43,12 +45,10 @@ public class SpringBatchConfig {
     public final StepBuilderFactory stepBuilderFactory;
     public final DataSource dataSource;
     public final LibraryProcessor libraryProcessor;
-
     private final EntityManagerFactory entityManagerFactory;
-
     private final BigLocalRepository bigLocalRepository;
-
-    Set<String> testcc = new HashSet<>();
+    private final DuplicationTest duplicationTest;
+    private final RedisTemplate<String, String> redisTemplate;
 
     @Bean
     public Job importLibrary() {
@@ -135,7 +135,7 @@ public class SpringBatchConfig {
     @Bean
     public Step readLibraryTmpAndWriterStep1() {
         return stepBuilderFactory.get("readLibraryTmpAndWriterStep1")
-                .<LibraryTmp, Set<String>>chunk(4000)
+                .<LibraryTmp, DuplicationTest>chunk(10)
                 .reader(jpaPagingItemReader())
                 .processor(LibraryTmpToLibrary())
                 .writer(jpaPagingItemWriter())
@@ -148,30 +148,41 @@ public class SpringBatchConfig {
         return new JpaPagingItemReaderBuilder<LibraryTmp>()
                 .name("LibraryReadFromLibraryTmpTable")
                 .entityManagerFactory(entityManagerFactory)
-                .pageSize(4000)
+                .pageSize(10)
                 .queryString("SELECT p FROM LibraryTmp p")
                 .build();
     }
 
+    // TODO : 다른 정보 redis에 넣는작업 필요
     @Bean
-    public ItemProcessor<LibraryTmp, Set<String>> LibraryTmpToLibrary() {
+    public ItemProcessor<LibraryTmp, DuplicationTest> LibraryTmpToLibrary() {
         return  LibraryTmp -> {
-            testcc.add(LibraryTmp.getBigLocal());
-            return testcc;
+            setRedisValue("bigLocal", LibraryTmp.getBigLocal());
+            return duplicationTest;
         };
     }
 
+    // TODO : chunk 단위를 작게하면 DB에는 loop 돌면서 들어감. 수정 필요
+    // TODO : redis key 삭제 필요
     @Bean
-    public ItemWriter<Set<String>> jpaPagingItemWriter() {
+    public ItemWriter<DuplicationTest> jpaPagingItemWriter() {
         return Items -> {
-            log.info("Items size : "+Items.size());
-//            for (Set<String> item : Items) {
-//                log.info(String.valueOf(item));
-//            }
-//            for (BigLocal bigLocal : bigLocals) {
-//                log.info("");
-//                bigLocalRepository.save(bigLocal);
-//            }
+            getRedisValue().forEach(bigLocalString -> {
+                BigLocal bigLocal = BigLocal.builder().bigLocal(bigLocalString).build();
+                bigLocalRepository.save(bigLocal);
+            });
         };
+    }
+
+    private void setRedisValue(String key, String value) {
+        SetOperations<String, String> data = redisTemplate.opsForSet();
+        data.add(key, value);
+    }
+
+    private Set<String> getRedisValue() {
+        SetOperations<String, String> data = redisTemplate.opsForSet();
+        Set<String> test = data.members("bigLocal");
+
+        return test;
     }
 }
