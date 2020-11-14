@@ -7,10 +7,9 @@ import me.springbatchstudy.Listener.ProcessListener;
 import me.springbatchstudy.Listener.ReadListener;
 import me.springbatchstudy.Listener.WriterListener;
 import me.springbatchstudy.Repository.BigLocalRepository;
-import me.springbatchstudy.model.BigLocal;
-import me.springbatchstudy.model.DuplicationTest;
-import me.springbatchstudy.model.LibraryTmp;
-import me.springbatchstudy.model.LibraryTmpDto;
+import me.springbatchstudy.Repository.LibraryTypeRepository;
+import me.springbatchstudy.Repository.SmallLocalRepository;
+import me.springbatchstudy.model.*;
 import me.springbatchstudy.processor.LibraryProcessor;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
@@ -35,6 +34,8 @@ import org.springframework.data.redis.core.SetOperations;
 
 import javax.persistence.EntityManagerFactory;
 import javax.sql.DataSource;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 @Slf4j
@@ -47,8 +48,13 @@ public class SpringBatchConfig {
     public final LibraryProcessor libraryProcessor;
     private final EntityManagerFactory entityManagerFactory;
     private final BigLocalRepository bigLocalRepository;
-    private final DuplicationTest duplicationTest;
+    private final SmallLocalRepository smallLocalRepository;
+    private final LibraryTypeRepository libraryTypeRepository;
     private final RedisTemplate<String, String> redisTemplate;
+
+    String RedisInBigLocalName = "library-big-local";
+    String RedisInSmallLocalName = "library-small-local";
+    String RedisInType = "library-type";
 
     @Bean
     public Job importLibrary() {
@@ -135,7 +141,7 @@ public class SpringBatchConfig {
     @Bean
     public Step readLibraryTmpAndWriterStep1() {
         return stepBuilderFactory.get("readLibraryTmpAndWriterStep1")
-                .<LibraryTmp, DuplicationTest>chunk(10)
+                .<LibraryTmp, Library>chunk(10)
                 .reader(jpaPagingItemReader())
                 .processor(LibraryTmpToLibrary())
                 .writer(jpaPagingItemWriter())
@@ -155,22 +161,53 @@ public class SpringBatchConfig {
 
     // TODO : 다른 정보 redis에 넣는작업 필요
     @Bean
-    public ItemProcessor<LibraryTmp, DuplicationTest> LibraryTmpToLibrary() {
+    public ItemProcessor<LibraryTmp, Library> LibraryTmpToLibrary() {
+        List<BigLocal> bigLocalList = new ArrayList<>();
+        List<SmallLocal> smallLocalList = new ArrayList<>();
+        List<LibraryType> libraryTypeList = new ArrayList<>();
         return  LibraryTmp -> {
-            setRedisValue("bigLocal", LibraryTmp.getBigLocal());
-            return duplicationTest;
+            bigLocalList.add(BigLocal.builder().bigLocal(LibraryTmp.getBigLocal()).build());
+            smallLocalList.add(SmallLocal.builder().smallLocal(LibraryTmp.getSmallLocal()).build());
+            libraryTypeList.add(LibraryType.builder().libarayType(LibraryTmp.getLibraryType()).build());
+
+            return Library.builder()
+                    .bigLocal(bigLocalList)
+                    .smallLocal(smallLocalList)
+                    .libraryType(libraryTypeList)
+                    .build();
         };
     }
 
-    // TODO : chunk 단위를 작게하면 DB에는 loop 돌면서 들어감. 수정 필요
-    // TODO : redis key 삭제 필요
+
+    // TODO : 1. for 문 안에 있는 중복 코드 함수로 변경
+    // TODO : 2. library_type 추가
+    // TODO : 3. redis key 삭제 필요
     @Bean
-    public ItemWriter<DuplicationTest> jpaPagingItemWriter() {
+    public ItemWriter<Library> jpaPagingItemWriter() {
+        Set<String> redisBigLocalData = getRedisValue(RedisInBigLocalName);
+        Set<String> redisSmallLocalData = getRedisValue(RedisInSmallLocalName);
         return Items -> {
-            getRedisValue().forEach(bigLocalString -> {
-                BigLocal bigLocal = BigLocal.builder().bigLocal(bigLocalString).build();
-                bigLocalRepository.save(bigLocal);
-            });
+            for (Library item : Items) {
+                for (BigLocal bigLocalList : item.getBigLocal()) {
+                    String bigLocal = bigLocalList.getBigLocal();
+
+                    if (!redisBigLocalData.contains(bigLocal)) {
+                        bigLocalRepository.save(bigLocalList);
+                        setRedisValue(RedisInBigLocalName, bigLocal);
+                        redisBigLocalData.add(bigLocal);
+                    }
+                }
+
+                for (SmallLocal smallLocalList : item.getSmallLocal()) {
+                    String smallLocal = smallLocalList.getSmallLocal();
+
+                    if (!redisSmallLocalData.contains(smallLocal)) {
+                        smallLocalRepository.save(smallLocalList);
+                        setRedisValue(RedisInSmallLocalName, smallLocal);
+                        redisSmallLocalData.add(smallLocal);
+                    }
+                }
+            }
         };
     }
 
@@ -179,9 +216,9 @@ public class SpringBatchConfig {
         data.add(key, value);
     }
 
-    private Set<String> getRedisValue() {
+    private Set<String> getRedisValue(String key) {
         SetOperations<String, String> data = redisTemplate.opsForSet();
-        Set<String> test = data.members("bigLocal");
+        Set<String> test = data.members(key);
 
         return test;
     }
