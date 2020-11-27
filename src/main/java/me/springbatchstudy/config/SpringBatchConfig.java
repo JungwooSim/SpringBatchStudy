@@ -7,6 +7,7 @@ import me.springbatchstudy.Listener.ProcessListener;
 import me.springbatchstudy.Listener.ReadListener;
 import me.springbatchstudy.Listener.WriterListener;
 import me.springbatchstudy.Repository.BigLocalRepository;
+import me.springbatchstudy.Repository.LibraryRepository;
 import me.springbatchstudy.Repository.LibraryTypeRepository;
 import me.springbatchstudy.Repository.SmallLocalRepository;
 import me.springbatchstudy.model.*;
@@ -14,6 +15,7 @@ import me.springbatchstudy.processor.LibraryProcessor;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
+import org.springframework.batch.core.configuration.annotation.JobScope;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.launch.support.RunIdIncrementer;
 import org.springframework.batch.item.ItemProcessor;
@@ -26,6 +28,7 @@ import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
 import org.springframework.batch.item.file.mapping.BeanWrapperFieldSetMapper;
 import org.springframework.batch.item.file.mapping.DefaultLineMapper;
 import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
+import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
@@ -34,8 +37,6 @@ import org.springframework.data.redis.core.SetOperations;
 
 import javax.persistence.EntityManagerFactory;
 import javax.sql.DataSource;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Set;
 
 @Slf4j
@@ -51,18 +52,19 @@ public class SpringBatchConfig {
     private final SmallLocalRepository smallLocalRepository;
     private final LibraryTypeRepository libraryTypeRepository;
     private final RedisTemplate<String, String> redisTemplate;
+    private final LibraryRepository libraryRepository;
 
     String RedisInBigLocalValue = "library-big-local";
     String RedisInSmallLocalValue = "library-small-local";
-    String RedisInTypeValue = "library-type";
+    String RedisInLibraryTypeValue = "library-type";
 
     @Bean
     public Job importLibrary() {
         return jobBuilderFactory.get("libraryTest")
                 .listener(jobListener())
+                .incrementer(new RunIdIncrementer())
                 .flow(step1())
                 .end()
-                .incrementer(new RunIdIncrementer())
                 .build();
     }
 
@@ -132,10 +134,20 @@ public class SpringBatchConfig {
     @Bean
     public Job readLibraryTmpAndWriter() {
         return jobBuilderFactory.get("readLibraryTmpAndWriter")
-                .flow(readLibraryTmpAndWriterStep1())
-                .end()
+                .start(readLibraryTmpAndWriterStep1())
+                .next(redisDelete())
                 .incrementer(new RunIdIncrementer())
                 .build();
+    }
+    @Bean
+    public Step redisDelete() {
+        return stepBuilderFactory.get("redisDelete")
+                .tasklet((contribution, chunkContext) -> {
+                    redisTemplate.delete(RedisInBigLocalValue);
+                    redisTemplate.delete(RedisInSmallLocalValue);
+                    redisTemplate.delete(RedisInLibraryTypeValue);
+                    return RepeatStatus.FINISHED;
+                }).build();
     }
 
     @Bean
@@ -159,65 +171,65 @@ public class SpringBatchConfig {
                 .build();
     }
 
-    // TODO : 다른 정보 redis에 넣는작업 필요
     @Bean
     public ItemProcessor<LibraryTmp, Library> LibraryTmpToLibrary() {
-        List<BigLocal> bigLocalList = new ArrayList<>();
-        List<SmallLocal> smallLocalList = new ArrayList<>();
-        List<LibraryType> libraryTypeList = new ArrayList<>();
         return  LibraryTmp -> {
-            bigLocalList.add(BigLocal.builder().bigLocal(LibraryTmp.getBigLocal()).build());
-            smallLocalList.add(SmallLocal.builder().smallLocal(LibraryTmp.getSmallLocal()).build());
-            libraryTypeList.add(LibraryType.builder().libarayType(LibraryTmp.getLibraryType()).build());
-
             return Library.builder()
-                    .bigLocal(bigLocalList)
-                    .smallLocal(smallLocalList)
-                    .libraryType(libraryTypeList)
+                    .libraryNM(LibraryTmp.libraryNM)
+                    .bigLocal(BigLocal.builder().bigLocal(LibraryTmp.getBigLocal()).build())
+                    .smallLocal(SmallLocal.builder().smallLocal(LibraryTmp.getSmallLocal()).build())
+                    .libraryType(LibraryType.builder().libarayType(LibraryTmp.getLibraryType()).build())
                     .build();
         };
     }
 
-
-    // TODO : 1. for 문 안에 있는 중복 코드 함수로 변경
-    // TODO : 3. redis key 삭제 필요
     @Bean
     public ItemWriter<Library> jpaPagingItemWriter() {
         Set<String> redisBigLocalData = getRedisValue(RedisInBigLocalValue);
         Set<String> redisSmallLocalData = getRedisValue(RedisInSmallLocalValue);
-        Set<String> redisTypeData = getRedisValue(RedisInTypeValue);
+        Set<String> redisTypeData = getRedisValue(RedisInLibraryTypeValue);
 
         return Items -> {
             for (Library item : Items) {
-                for (BigLocal bigLocalList : item.getBigLocal()) {
-                    String bigLocal = bigLocalList.getBigLocal();
+                BigLocal bigLocal = item.getBigLocal();
+                String bigLocalValue = bigLocal.getBigLocal();
 
-                    if (!redisBigLocalData.contains(bigLocal)) {
-                        bigLocalRepository.save(bigLocalList);
-                        setRedisValue(RedisInBigLocalValue, bigLocal);
-                        redisBigLocalData.add(bigLocal);
-                    }
+                if (!redisBigLocalData.contains(bigLocalValue)) {
+                    bigLocalRepository.saveAndFlush(bigLocal);
+                    setRedisValue(RedisInBigLocalValue, bigLocalValue);
+                    redisBigLocalData.add(bigLocalValue);
+                } else {
+                    bigLocal = bigLocalRepository.findByBigLocal(bigLocalValue);
                 }
 
-                for (SmallLocal smallLocalList : item.getSmallLocal()) {
-                    String smallLocal = smallLocalList.getSmallLocal();
+                SmallLocal smallLocal = item.getSmallLocal();
+                String smallLocalValue = smallLocal.getSmallLocal();
 
-                    if (!redisSmallLocalData.contains(smallLocal)) {
-                        smallLocalRepository.save(smallLocalList);
-                        setRedisValue(RedisInSmallLocalValue, smallLocal);
-                        redisSmallLocalData.add(smallLocal);
-                    }
+                if (!redisSmallLocalData.contains(smallLocalValue)) {
+                    smallLocalRepository.saveAndFlush(smallLocal);
+                    setRedisValue(RedisInSmallLocalValue, smallLocalValue);
+                    redisSmallLocalData.add(smallLocalValue);
+                } else {
+                    smallLocal = smallLocalRepository.findBySmallLocal(smallLocalValue);
                 }
 
-                for (LibraryType LibraryTypeList : item.getLibraryType()) {
-                    String libraryType = LibraryTypeList.getLibarayType();
+                LibraryType libraryType = item.getLibraryType();
+                String libraryTypeValue = libraryType.getLibarayType();
 
-                    if (!redisTypeData.contains(libraryType)) {
-                        libraryTypeRepository.save(LibraryTypeList);
-                        setRedisValue(RedisInTypeValue, libraryType);
-                        redisTypeData.add(libraryType);
-                    }
+                if (!redisTypeData.contains(libraryTypeValue)) {
+                    libraryTypeRepository.saveAndFlush(libraryType);
+                    setRedisValue(RedisInLibraryTypeValue, libraryTypeValue);
+                    redisTypeData.add(libraryTypeValue);
+                } else {
+                    libraryType = libraryTypeRepository.findByLibarayType(libraryTypeValue);
                 }
+
+                libraryRepository.save(Library.builder()
+                        .libraryNM(item.getLibraryNM())
+                        .bigLocal(bigLocal)
+                        .smallLocal(smallLocal)
+                        .libraryType(libraryType)
+                        .build());
             }
         };
     }

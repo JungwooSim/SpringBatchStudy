@@ -6,14 +6,12 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import javax.persistence.*;
-import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.List;
 
 @Getter
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
+@Entity(name = "library")
 public class Library {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -22,9 +20,15 @@ public class Library {
     @Column(name = "library_nm")
     public String libraryNM;
 
-    public List<BigLocal> bigLocal = new ArrayList<>();
+    @OneToOne
+    @JoinColumn(name = "big_local_id", referencedColumnName = "id")
+    public BigLocal bigLocal;
 
-    public List<SmallLocal> smallLocal = new ArrayList<>();
+    @OneToOne
+    @JoinColumn(name = "small_local_id", referencedColumnName = "id")
+    public SmallLocal smallLocal;
 
-    public List<LibraryType> libraryType = new ArrayList<>();
+    @OneToOne
+    @JoinColumn(name = "libaray_type_id", referencedColumnName = "id")
+    public LibraryType libraryType;
 }
