@@ -1,4 +1,4 @@
-package me.springbatchstudy.Repository;
+package me.springbatchstudy.model.Repository;
 
 import me.springbatchstudy.model.LibraryTmp;
 import org.springframework.data.jpa.repository.JpaRepository;
