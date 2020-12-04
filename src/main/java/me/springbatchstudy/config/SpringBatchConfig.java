@@ -34,8 +34,9 @@ public class SpringBatchConfig {
     public Job importLibraryAndWriterDBJob() {
         return jobBuilderFactory.get("ImportLibraryAndWriterDB")
                 .incrementer(new RunIdIncrementer())
-                .start(importLibraryAndWriterDBWorker.importLibraryAndWriterDB())
+                .flow(importLibraryAndWriterDBWorker.importLibraryAndWriterDB())
                 .next(importLibraryAndWriterDBWorker.redisDelete())
+                .end()
                 .build();
     }
 }
