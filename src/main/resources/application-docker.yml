@@ -1,9 +1,12 @@
 Spring:
   datasource:
-    url: jdbc:mysql://localhost:3306/spring_batch_basic?characterEncoding=utf8
+    url: jdbc:mysql://my_mysql:3306/spring_batch_basic?characterEncoding=utf8
     username: big
     password: tlawjddn1!
     driver-class-name: com.mysql.cj.jdbc.Driver
+  redis:
+    host: my_redis
+    port: 6379
   batch:
     job:
       names: ${job.name:NONE}
@@ -11,8 +14,5 @@ Spring:
     jpa:
       repositories:
         bootstrap-mode: default
-  redis:
-    host: localhost
-    port: 6379
 
 logging.level.org.springframework.batch: DEBUG
